@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF--8" />
+    <link rel="icon" type="image/svg+xml" href="/vite.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Form Extractor Pro</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Noto+Sans+Arabic:wght@400;700&display=swap" rel="stylesheet">
+    <script type="importmap">
+{
+  "imports": {
+    "@google/genai": "https://aistudiocdn.com/@google/genai@^1.29.0",
+    "react/": "https://aistudiocdn.com/react@^19.2.0/",
+    "react": "https://aistudiocdn.com/react@^19.2.0",
+    "react-dom/": "https://aistudiocdn.com/react-dom@^19.2.0/"
+  }
+}
+</script>
+<style>
+  body {
+    font-family: 'Inter', 'Noto Sans Arabic', sans-serif;
+  }
+  /* Custom Scrollbar */
+  ::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+  ::-webkit-scrollbar-track {
+    background: rgba(30, 41, 59, 0.3);
+    border-radius: 10px;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: rgba(100, 116, 139, 0.5);
+    border-radius: 10px;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: rgba(100, 116, 139, 0.8);
+  }
+
+  /* Glassmorphism utility */
+  .glassmorphism {
+    background: rgba(30, 41, 59, 0.6);
+    -webkit-backdrop-filter: blur(20px);
+    backdrop-filter: blur(20px);
+    border: 1px solid rgba(100, 116, 139, 0.3);
+  }
+
+  /* Pulse animation for issue badges */
+  @keyframes pulse-red {
+    0%, 100% {
+      box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.7);
+    }
+    50% {
+      box-shadow: 0 0 0 5px rgba(239, 68, 68, 0);
+    }
+  }
+  .animate-pulse-red {
+    animation: pulse-red 2s infinite;
+  }
+  
+  /* Tooltip styles */
+  [data-tooltip] {
+    position: relative;
+    cursor: pointer;
+  }
+  [data-tooltip]:not([data-tooltip=""])::after {
+    content: attr(data-tooltip);
+    position: absolute;
+    bottom: 100%;
+    left: 50%;
+    transform: translateX(-50%) translateY(-8px);
+    background-color: #1e293b;
+    color: #cbd5e1;
+    padding: 6px 10px;
+    border-radius: 6px;
+    font-size: 12px;
+    font-weight: 500;
+    white-space: pre-wrap;
+    width: max-content;
+    max-width: 250px;
+    text-align: center;
+    z-index: 50;
+    opacity: 0;
+    visibility: hidden;
+    transition: opacity 0.2s, visibility 0.2s, transform 0.2s;
+    pointer-events: none;
+    box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+    border: 1px solid #334155;
+  }
+  [data-tooltip]:hover::after {
+    opacity: 1;
+    visibility: visible;
+    transform: translateX(-50%) translateY(-4px);
+  }
+  
+  /* Cell Highlighting */
+  .cell-border-missing { border-left: 3px solid #ef4444; } /* red-500 */
+  .cell-border-confidence { border-left: 3px solid #f59e0b; } /* amber-500 */
+  .cell-border-format { border-left: 3px solid #f97316; } /* orange-500 */
+  
+  .row-selected {
+    background-color: rgba(59, 130, 246, 0.15) !important;
+  }
+  
+  /* Split view resizer */
+  .resize-handle {
+    width: 12px;
+    cursor: col-resize;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background-color: transparent;
+    transition: background-color 0.2s ease;
+  }
+  .resize-handle:hover, .resizing {
+    background-color: rgba(59, 130, 246, 0.2);
+  }
+  .resize-handle::after {
+    content: '';
+    width: 2px;
+    height: 24px;
+    background-color: #475569;
+    border-radius: 2px;
+    transition: background-color 0.2s ease, transform 0.2s ease;
+  }
+  .resize-handle:hover::after, .resizing::after {
+    background-color: #3b82f6;
+    transform: scaleY(1.2);
+  }
+  
+  /* Accordion styles */
+  details > summary {
+    list-style: none;
+  }
+  details > summary::-webkit-details-marker {
+    display: none;
+  }
+</style>
+</head>
+  <body class="bg-slate-900 bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 font-sans text-slate-200 antialiased overflow-hidden">
+    <div id="root" class="h-screen w-screen"></div>
+    <script type="module" src="/index.tsx"></script>
+  </body>
+</html>

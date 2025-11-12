@@ -1,0 +1,5 @@
+{
+  "name": "OCR to Excel Extractor",
+  "description": "An application to extract handwritten and printed data from forms using Gemini and export it to a CSV format.",
+  "requestFramePermissions": []
+}
