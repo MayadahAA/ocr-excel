@@ -1,10 +1,12 @@
 import { GoogleGenAI, Type } from "@google/genai";
-import { ExtractedForm, ApiResponse, FormField, QualityReport } from "../types";
+import { ExtractedForm, ApiResponse, FormField, QualityReport, ExtractedDelivery, InkItem, DeliveryInfo } from "../types";
 import { DateNormalizer } from './dateNormalizer';
 import { ArabicCorrector } from './arabicCorrector';
 import { db } from './mockDatabase';
 
 const FORM_FIELDS: FormField[] = ["Printer Name", "Ink Type", "Ink Number", "Date", "Department", "Recipient Name", "Employee ID", "Deliverer Name"];
+const ITEM_FIELDS = ["Printer Name", "Ink Type", "Ink Number"] as const;
+const DELIVERY_FIELDS = ["Date", "Department", "Recipient Name", "Employee ID", "Deliverer Name"] as const;
 const ARABIC_REGEX = /[\u0600-\u06FF]/;
 
 // --- Image Processing & Quality Assessment ---
@@ -194,52 +196,92 @@ const fileToGenerativePart = async (file: File) => {
   return { inlineData: { data: base64EncodedData, mimeType: file.type } };
 };
 
-const systemInstruction = "OCR AI: Extract form data as JSON with confidence scores and bounding boxes.";
-const userPrompt = `Extract all forms from this image (Arabic/English text).
+const systemInstruction = "OCR AI: Extract delivery forms with multiple printer/ink items per delivery.";
+const userPrompt = `Extract all deliveries from this image. Each delivery has:
+- Multiple printer/ink items (each printer+ink is a separate row)
+- Shared info: Date, Department, Recipient Name, Employee ID, Deliverer Name
 
 Rules:
+- Extract each printer/ink combination as separate item
+- Group items that share the same delivery info
 - Empty fields: "N/A"
 - Confidence: 0-1 per field
 - Bounding boxes: [x_min, y_min, x_max, y_max] normalized 0-1
-- Arabic: precise dots (ب ت ث ن ي), watch ج/ح/خ س/ش ر/ز د/ذ
+- Arabic: precise dots (ب ت ث ن ي)
 
 Output JSON only.`;
 
 const responseSchema = {
   type: Type.OBJECT,
   properties: {
-    forms: {
+    deliveries: {
       type: Type.ARRAY,
       items: {
         type: Type.OBJECT,
         properties: {
-          ...FORM_FIELDS.reduce((acc, field) => ({ ...acc, [field]: { type: Type.STRING } }), {}),
-          "_boundingBoxes": {
+          deliveryInfo: {
             type: Type.OBJECT,
-            properties: FORM_FIELDS.reduce((acc, field) => ({
-              ...acc,
-              [field]: {
+            properties: {
+              ...DELIVERY_FIELDS.reduce((acc, field) => ({ ...acc, [field]: { type: Type.STRING } }), {}),
+              "_boundingBoxes": {
                 type: Type.OBJECT,
-                properties: {
-                  box: { type: Type.ARRAY, items: { type: Type.NUMBER } },
-                  page: { type: Type.INTEGER }
-                }
+                properties: DELIVERY_FIELDS.reduce((acc, field) => ({
+                  ...acc,
+                  [field]: {
+                    type: Type.OBJECT,
+                    properties: {
+                      box: { type: Type.ARRAY, items: { type: Type.NUMBER } },
+                      page: { type: Type.INTEGER }
+                    }
+                  }
+                }), {})
+              },
+              "_confidence": {
+                type: Type.OBJECT,
+                properties: DELIVERY_FIELDS.reduce((acc, field) => ({
+                  ...acc,
+                  [field]: { type: Type.NUMBER }
+                }), {})
               }
-            }), {})
+            },
+            required: [...DELIVERY_FIELDS],
           },
-          "_confidence": {
-            type: Type.OBJECT,
-            properties: FORM_FIELDS.reduce((acc, field) => ({
-              ...acc,
-              [field]: { type: Type.NUMBER }
-            }), {})
-          }
+          items: {
+            type: Type.ARRAY,
+            items: {
+              type: Type.OBJECT,
+              properties: {
+                ...ITEM_FIELDS.reduce((acc, field) => ({ ...acc, [field]: { type: Type.STRING } }), {}),
+                "_boundingBoxes": {
+                  type: Type.OBJECT,
+                  properties: ITEM_FIELDS.reduce((acc, field) => ({
+                    ...acc,
+                    [field]: {
+                      type: Type.OBJECT,
+                      properties: {
+                        box: { type: Type.ARRAY, items: { type: Type.NUMBER } },
+                        page: { type: Type.INTEGER }
+                      }
+                    }
+                  }), {})
+                },
+                "_confidence": {
+                  type: Type.OBJECT,
+                  properties: ITEM_FIELDS.reduce((acc, field) => ({
+                    ...acc,
+                    [field]: { type: Type.NUMBER }
+                  }), {})
+                }
+              },
+              required: [...ITEM_FIELDS],
+            },
+          },
         },
-        required: FORM_FIELDS,
+        required: ["deliveryInfo", "items"],
       },
     },
   },
-  required: ["forms"],
+  required: ["deliveries"],
 };
 
 // --- Post-Processing & Error Correction ---
@@ -283,7 +325,7 @@ const runExtraction = async (imageFile: File, ai: GoogleGenAI): Promise<ApiRespo
     if (!response?.text) throw new Error("Empty response from API");
     
     const parsedData: ApiResponse = JSON.parse(response.text.trim());
-    if (!parsedData?.forms || !Array.isArray(parsedData.forms)) {
+    if (!parsedData?.deliveries || !Array.isArray(parsedData.deliveries)) {
         throw new Error("Invalid response structure from API");
     }
     
@@ -291,39 +333,93 @@ const runExtraction = async (imageFile: File, ai: GoogleGenAI): Promise<ApiRespo
 };
 
 const processExtractedForms = (apiResponse: ApiResponse): ExtractedForm[] => {
-    return apiResponse.forms.map(form => {
-        const processedForm: ExtractedForm = { ...form };
+    const flattenedForms: ExtractedForm[] = [];
+    
+    // تسطيح البنية: كل delivery يحتوي على عدة items
+    apiResponse.deliveries.forEach((delivery) => {
+        const deliveryInfo = delivery.deliveryInfo;
         
-        FORM_FIELDS.forEach(field => {
-            const value = form[field] ?? '';
+        // معالجة حقول التسليم المشتركة
+        const processedDeliveryInfo: any = {};
+        DELIVERY_FIELDS.forEach(field => {
+            const value = deliveryInfo[field] ?? '';
             let { correctedValue, correctionDetails } = postProcessField(field, value);
             
-            // تطبيق تعلم من تصحيحات المستخدم السابقة
             const suggestion = db.getSuggestion(field, correctedValue);
             if (suggestion) {
-                const originalBeforeSuggestion = correctedValue;
                 correctedValue = suggestion;
-                correctionDetails = {
-                    original: originalBeforeSuggestion,
-                    reason: "Applied from user feedback"
-                };
-                console.log(`✨ Auto-corrected "${originalBeforeSuggestion}" → "${suggestion}" based on feedback`);
+                correctionDetails = { original: value, reason: "Applied from user feedback" };
+                console.log(`✨ Auto-corrected "${value}" → "${suggestion}" based on feedback`);
             }
             
-            processedForm[field] = correctedValue;
+            processedDeliveryInfo[field] = correctedValue;
             
             if (correctionDetails) {
-                const originalConfidence = form._confidence?.[field] ?? 0;
-                if (!processedForm._confidence) processedForm._confidence = {};
-                processedForm._confidence[field] = Math.min(0.99, originalConfidence + 0.15);
-                
-                if (!processedForm._correctionDetails) processedForm._correctionDetails = {};
-                processedForm._correctionDetails[field] = correctionDetails;
+                if (!processedDeliveryInfo._correctionDetails) processedDeliveryInfo._correctionDetails = {};
+                processedDeliveryInfo._correctionDetails[field] = correctionDetails;
+            }
+            
+            // Confidence and bounding boxes
+            if (deliveryInfo._confidence?.[field]) {
+                if (!processedDeliveryInfo._confidence) processedDeliveryInfo._confidence = {};
+                processedDeliveryInfo._confidence[field] = deliveryInfo._confidence[field];
+            }
+            if (deliveryInfo._boundingBoxes?.[field]) {
+                if (!processedDeliveryInfo._boundingBoxes) processedDeliveryInfo._boundingBoxes = {};
+                processedDeliveryInfo._boundingBoxes[field] = deliveryInfo._boundingBoxes[field];
             }
         });
         
-        return processedForm;
+        // معالجة كل item (طابعة/حبر) ودمجها مع معلومات التسليم
+        delivery.items.forEach((item) => {
+            const flattenedForm: ExtractedForm = {
+                "Printer Name": "",
+                "Ink Type": "",
+                "Ink Number": "",
+                "Date": processedDeliveryInfo["Date"],
+                "Department": processedDeliveryInfo["Department"],
+                "Recipient Name": processedDeliveryInfo["Recipient Name"],
+                "Employee ID": processedDeliveryInfo["Employee ID"],
+                "Deliverer Name": processedDeliveryInfo["Deliverer Name"],
+                _boundingBoxes: { ...processedDeliveryInfo._boundingBoxes },
+                _confidence: { ...processedDeliveryInfo._confidence },
+                _correctionDetails: { ...processedDeliveryInfo._correctionDetails },
+            };
+            
+            // معالجة حقول ال item
+            ITEM_FIELDS.forEach(field => {
+                const value = item[field] ?? '';
+                let { correctedValue, correctionDetails } = postProcessField(field, value);
+                
+                const suggestion = db.getSuggestion(field, correctedValue);
+                if (suggestion) {
+                    correctedValue = suggestion;
+                    correctionDetails = { original: value, reason: "Applied from user feedback" };
+                    console.log(`✨ Auto-corrected "${value}" → "${suggestion}" based on feedback`);
+                }
+                
+                flattenedForm[field] = correctedValue;
+                
+                if (correctionDetails) {
+                    if (!flattenedForm._correctionDetails) flattenedForm._correctionDetails = {};
+                    flattenedForm._correctionDetails[field] = correctionDetails;
+                }
+                
+                if (item._confidence?.[field]) {
+                    if (!flattenedForm._confidence) flattenedForm._confidence = {};
+                    flattenedForm._confidence[field] = item._confidence[field];
+                }
+                if (item._boundingBoxes?.[field]) {
+                    if (!flattenedForm._boundingBoxes) flattenedForm._boundingBoxes = {};
+                    flattenedForm._boundingBoxes[field] = item._boundingBoxes[field];
+                }
+            });
+            
+            flattenedForms.push(flattenedForm);
+        });
     });
+    
+    return flattenedForms;
 };
 
 export const extractFormData = async (imageFile: File): Promise<{ forms: ExtractedForm[]; processedPreviewUrl: string | null; imageDimensions: { width: number, height: number }; qualityReport: QualityReport; }> => {

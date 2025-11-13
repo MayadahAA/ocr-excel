@@ -14,7 +14,9 @@ interface EditableCellProps {
   onFocus: () => void;
 }
 
-export const EditableCell: React.FC<EditableCellProps> = ({
+type Density = 'comfortable' | 'cozy' | 'compact';
+
+export const EditableCell: React.FC<EditableCellProps & { density?: Density }> = ({
   formIndex,
   field,
   value,
@@ -24,6 +26,7 @@ export const EditableCell: React.FC<EditableCellProps> = ({
   onSave,
   onHover,
   onFocus,
+  density = 'comfortable'
 }) => {
   const [isEditing, setIsEditing] = useState(false);
   const [currentValue, setCurrentValue] = useState(value);
@@ -85,6 +88,23 @@ export const EditableCell: React.FC<EditableCellProps> = ({
   }
 
   const isArabic = /[\u0600-\u06FF]/.test(value);
+  
+  // تحديد لون المؤشر حسب الثقة
+  const getConfidenceColor = () => {
+    if (!confidence) return null;
+    if (confidence >= 0.9) return 'bg-green-500';
+    if (confidence >= 0.7) return 'bg-yellow-500';
+    return 'bg-red-500';
+  };
+  
+  const confidenceColor = getConfidenceColor();
+
+  const densityClass =
+    density === 'compact'
+      ? 'px-2 py-1.5 text-xs'
+      : density === 'cozy'
+      ? 'px-3 py-2 text-sm'
+      : 'px-4 py-3 text-sm';
 
   return (
     <td
@@ -92,7 +112,7 @@ export const EditableCell: React.FC<EditableCellProps> = ({
       onMouseEnter={() => onHover(true)}
       onMouseLeave={() => onHover(false)}
       onClick={!isEditing ? handleClick : undefined}
-      className={`px-4 py-2.5 text-sm text-slate-300 relative transition-colors duration-200 cursor-pointer w-48 ${getBorderClass()}`}
+      className={`${densityClass} text-slate-900 relative transition-colors duration-200 cursor-pointer ${isArabic ? 'text-right' : 'text-left'} ${getBorderClass()}`}
       data-tooltip={getTooltip()}
     >
       {isEditing ? (
@@ -103,15 +123,21 @@ export const EditableCell: React.FC<EditableCellProps> = ({
           onChange={(e) => setCurrentValue(e.target.value)}
           onBlur={handleSave}
           onKeyDown={handleKeyDown}
-          className={`w-full bg-slate-700/80 text-white p-1.5 rounded-md outline-none focus:ring-2 focus:ring-blue-500 ${isArabic ? 'text-right' : 'text-left'}`}
+          className={`w-full bg-white border border-slate-300 text-slate-900 px-3 py-2 rounded-lg shadow-sm outline-none focus:ring-2 focus:ring-blue-400 ${isArabic ? 'text-right' : 'text-left'}`}
           dir={isArabic ? 'rtl' : 'ltr'}
         />
       ) : (
-        <div className="flex items-center gap-2">
-            <span className={`block truncate ${isArabic ? 'text-right flex-grow' : 'text-left'}`}>
-              {value || <span className="text-slate-500 italic">empty</span>}
+        <div className={`flex items-center gap-2 ${isArabic ? 'flex-row-reverse' : 'flex-row'}`}>
+            {confidenceColor && (
+              <div 
+                className={`w-2 h-2 rounded-full ${confidenceColor} flex-shrink-0`}
+                data-tooltip={`Confidence: ${Math.round((confidence || 0) * 100)}%`}
+              />
+            )}
+            <span className={`block truncate leading-relaxed ${isArabic ? 'text-right flex-grow font-medium' : 'text-left flex-grow font-medium'}`}>
+              {value || <span className="text-slate-400 italic">empty</span>}
             </span>
-            {correctionInfo && <SparkleIcon className="h-4 w-4 text-cyan-400 flex-shrink-0" />}
+            {correctionInfo && <SparkleIcon className="h-4 w-4 text-amber-500 flex-shrink-0" />}
         </div>
       )}
     </td>

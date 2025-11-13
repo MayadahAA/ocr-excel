@@ -24,7 +24,53 @@ export interface Form {
   _correctionDetails?: { [key in FormField]?: { original: string; reason: string; } };
 }
 
-// Gemini response will have this shape
+// Item within a delivery (one printer/ink entry)
+export interface InkItem {
+  "Printer Name": string;
+  "Ink Type": string;
+  "Ink Number": string;
+  _boundingBoxes?: {
+    "Printer Name"?: BoundingBox;
+    "Ink Type"?: BoundingBox;
+    "Ink Number"?: BoundingBox;
+  };
+  _confidence?: {
+    "Printer Name"?: number;
+    "Ink Type"?: number;
+    "Ink Number"?: number;
+  };
+}
+
+// Delivery metadata (shared across all items in the delivery)
+export interface DeliveryInfo {
+  "Date": string;
+  "Department": string;
+  "Recipient Name": string;
+  "Employee ID": string;
+  "Deliverer Name": string;
+  _boundingBoxes?: {
+    "Date"?: BoundingBox;
+    "Department"?: BoundingBox;
+    "Recipient Name"?: BoundingBox;
+    "Employee ID"?: BoundingBox;
+    "Deliverer Name"?: BoundingBox;
+  };
+  _confidence?: {
+    "Date"?: number;
+    "Department"?: number;
+    "Recipient Name"?: number;
+    "Employee ID"?: number;
+    "Deliverer Name"?: number;
+  };
+}
+
+// Gemini response will have this shape - one delivery with multiple items
+export interface ExtractedDelivery {
+  deliveryInfo: DeliveryInfo;
+  items: InkItem[];
+}
+
+// Flattened form for display (one row per item)
 export interface ExtractedForm {
   "Printer Name": string;
   "Ink Type": string;
@@ -39,9 +85,8 @@ export interface ExtractedForm {
   _correctionDetails?: { [key in FormField]?: { original: string; reason: string; } };
 }
 
-
 export interface ApiResponse {
-  forms: ExtractedForm[];
+  deliveries: ExtractedDelivery[];
 }
 
 export interface ValidationIssue {

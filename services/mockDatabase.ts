@@ -16,8 +16,34 @@ interface UserCorrection {
     timestamp: number;
 }
 
-const userCorrections: UserCorrection[] = [];
+const CORRECTIONS_STORAGE_KEY = 'ocr_user_corrections';
 const MAX_CORRECTIONS = 100; // حفظ آخر 100 تصحيح
+
+// تحميل التصحيحات من localStorage عند البداية
+const loadCorrectionsFromStorage = (): UserCorrection[] => {
+    try {
+        const stored = localStorage.getItem(CORRECTIONS_STORAGE_KEY);
+        if (stored) {
+            const parsed = JSON.parse(stored);
+            console.log(`✅ Loaded ${parsed.length} user corrections from storage`);
+            return parsed;
+        }
+    } catch (error) {
+        console.error('Failed to load corrections from storage:', error);
+    }
+    return [];
+};
+
+// حفظ التصحيحات إلى localStorage
+const saveCorrectionsToStorage = (corrections: UserCorrection[]): void => {
+    try {
+        localStorage.setItem(CORRECTIONS_STORAGE_KEY, JSON.stringify(corrections));
+    } catch (error) {
+        console.error('Failed to save corrections to storage:', error);
+    }
+};
+
+const userCorrections: UserCorrection[] = loadCorrectionsFromStorage();
 
 const validateField = (form: Form, field: FormField, formIndex: number): ValidationIssue | null => {
     const value = form[field];
@@ -165,6 +191,9 @@ export const db = {
                     userCorrections.shift();
                 }
                 
+                // حفظ إلى localStorage
+                saveCorrectionsToStorage(userCorrections);
+                
                 console.log(`📝 Feedback learned: "${originalValue}" → "${newValue}" for ${field}`);
             }
             
@@ -216,6 +245,18 @@ export const db = {
         });
         
         return stats;
+    },
+    
+    // مسح جميع التصحيحات المحفوظة
+    clearAllCorrections: () => {
+        userCorrections.length = 0;
+        saveCorrectionsToStorage([]);
+        console.log('🗑️ All user corrections cleared');
+    },
+    
+    // الحصول على جميع التصحيحات (للعرض أو التصدير)
+    getAllCorrections: () => {
+        return [...userCorrections];
     },
 
     updateRowsVerification: (fileId: string, indices: number[], verified: boolean): void => {

@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useEffect, useState } from 'react';
 import { ValidationIssue } from '../types';
 import { WarningIcon } from './icons/WarningIcon';
 import { ChevronDownIcon } from './icons/ChevronDownIcon';
@@ -41,6 +41,8 @@ const IssueCategory: React.FC<{
 );
 
 export const ValidationPanel: React.FC<ValidationPanelProps> = ({ issues, onIssueClick }) => {
+  const [currentIssueIndex, setCurrentIssueIndex] = useState(0);
+  
   const categorizedIssues = useMemo(() => {
     return issues.reduce((acc, issue) => {
       if (!acc[issue.type]) {
@@ -51,21 +53,74 @@ export const ValidationPanel: React.FC<ValidationPanelProps> = ({ issues, onIssu
     }, {} as Record<ValidationIssue['type'], ValidationIssue[]>);
   }, [issues]);
 
+  // اختصارات لوحة المفاتيح للتنقل بين الأخطاء
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (!issues || issues.length === 0) return;
+      
+      // Tab: الانتقال للخطأ التالي
+      if (e.key === 'Tab' && e.shiftKey) {
+        e.preventDefault();
+        const nextIndex = (currentIssueIndex - 1 + issues.length) % issues.length;
+        setCurrentIssueIndex(nextIndex);
+        onIssueClick(issues[nextIndex]);
+      } else if (e.key === 'Tab') {
+        e.preventDefault();
+        const nextIndex = (currentIssueIndex + 1) % issues.length;
+        setCurrentIssueIndex(nextIndex);
+        onIssueClick(issues[nextIndex]);
+      }
+    };
+    
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [issues, currentIssueIndex, onIssueClick]);
+
   if (!issues || issues.length === 0) {
     return null;
   }
 
+  const handleNext = () => {
+    const nextIndex = (currentIssueIndex + 1) % issues.length;
+    setCurrentIssueIndex(nextIndex);
+    onIssueClick(issues[nextIndex]);
+  };
+  
+  const handlePrev = () => {
+    const prevIndex = (currentIssueIndex - 1 + issues.length) % issues.length;
+    setCurrentIssueIndex(prevIndex);
+    onIssueClick(issues[prevIndex]);
+  };
+
   return (
-    <div className="flex-shrink-0 flex flex-col space-y-2 pt-4 border-t border-slate-700/50 min-h-0">
-      <h3 className="text-md font-semibold text-white flex items-center">
-        <span className="flex items-center justify-center h-7 w-7 mr-3 rounded-lg bg-gradient-to-br from-amber-500 to-orange-500">
-          <WarningIcon className="h-4 w-4 text-white" />
-        </span>
-        Validation Issues
-        <span className="ml-2 px-2 py-0.5 text-xs font-bold bg-red-500/20 text-red-300 rounded-full animate-pulse-red">
-          {issues.length}
-        </span>
-      </h3>
+    <div className="flex-shrink-0 flex flex-col space-y-2 pt-4 border-t border-slate-200 min-h-0">
+      <div className="flex items-center justify-between">
+        <h3 className="text-md font-semibold text-slate-700 flex items-center">
+          <span className="flex items-center justify-center h-7 w-7 mr-3 rounded-lg bg-gradient-to-br from-amber-500 to-orange-500">
+            <WarningIcon className="h-4 w-4 text-white" />
+          </span>
+          Validation Issues
+          <span className="ml-2 px-2 py-0.5 text-xs font-bold bg-red-100 text-red-600 rounded-full">
+            {currentIssueIndex + 1} / {issues.length}
+          </span>
+        </h3>
+        <div className="flex gap-1">
+          <button 
+            onClick={handlePrev}
+            className="px-3 py-1 text-xs bg-slate-100 hover:bg-slate-200 rounded-md transition-colors"
+            data-tooltip="Previous (Shift+Tab)"
+          >
+            ← السابق
+          </button>
+          <button 
+            onClick={handleNext}
+            className="px-3 py-1 text-xs bg-slate-100 hover:bg-slate-200 rounded-md transition-colors"
+            data-tooltip="Next (Tab)"
+          >
+            التالي →
+          </button>
+        </div>
+      </div>
       <div className="overflow-y-auto space-y-1 pr-2 -mr-2 max-h-48">
         {categorizedIssues.missing && (
           <IssueCategory title="Missing Fields" issues={categorizedIssues.missing} iconColor="text-red-500" onIssueClick={onIssueClick} />
