@@ -61,7 +61,18 @@ export class ArabicCorrector {
     }
     
     private correctCommonErrors(value: string): string {
-        return value.replace(/،/g, ',');
+        return value
+            // إصلاح الفواصل العربية
+            .replace(/،/g, ',')
+            // إصلاح المسافات الزائدة
+            .replace(/\s+/g, ' ')
+            // إصلاح الأخطاء الشائعة في الأحرف العربية
+            .replace(/أإآ/g, 'أ')
+            .replace(/ى/g, 'ي')
+            .replace(/ة/g, 'ه')
+            // إزالة الأحرف غير المرغوبة
+            .replace(/[^\u0600-\u06FF\u0750-\u077F\u08A0-\u08FF\uFB50-\uFDFF\uFE70-\uFEFFa-zA-Z0-9\s\-_.,\/]/g, '')
+            .trim();
     }
 
     public postProcess(field: FormField, value: string): { correctedValue: string; correctionDetails?: { original: string; reason: string; } } {

@@ -1,11 +1,10 @@
+import { NumberNormalizer } from './numberNormalizer';
+
 export class DateNormalizer {
-    private static readonly ARABIC_NUMERALS = new Map([
-        ['٠', '0'], ['١', '1'], ['٢', '2'], ['٣', '3'], ['٤', '4'],
-        ['٥', '5'], ['٦', '6'], ['٧', '7'], ['٨', '8'], ['٩', '9']
-    ]);
+    private numberNormalizer = new NumberNormalizer();
 
     private convertNumerals(input: string): string {
-        return input.replace(/[٠-٩]/g, char => DateNormalizer.ARABIC_NUMERALS.get(char) || char);
+        return this.numberNormalizer.normalize(input, 'Date');
     }
 
     private isValidDate(year: number, month: number, day: number): boolean {

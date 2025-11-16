@@ -2,6 +2,7 @@ import { GoogleGenAI, Type } from "@google/genai";
 import { ExtractedForm, ApiResponse, FormField, QualityReport, ExtractedDelivery, InkItem, DeliveryInfo } from "../types";
 import { DateNormalizer } from './dateNormalizer';
 import { ArabicCorrector } from './arabicCorrector';
+import { NumberNormalizer } from './numberNormalizer';
 import { db } from './mockDatabase';
 
 const FORM_FIELDS: FormField[] = ["Printer Name", "Ink Type", "Ink Number", "Date", "Department", "Recipient Name", "Employee ID", "Deliverer Name"];
@@ -196,18 +197,29 @@ const fileToGenerativePart = async (file: File) => {
   return { inlineData: { data: base64EncodedData, mimeType: file.type } };
 };
 
-const systemInstruction = "OCR AI: Extract delivery forms with multiple printer/ink items per delivery.";
+const systemInstruction = "OCR AI: Extract delivery forms with multiple printer/ink items per delivery. Support Arabic, English, and numbers in both Arabic and English formats.";
 const userPrompt = `Extract all deliveries from this image. Each delivery has:
 - Multiple printer/ink items (each printer+ink is a separate row)
 - Shared info: Date, Department, Recipient Name, Employee ID, Deliverer Name
 
-Rules:
+Extraction Rules:
 - Extract each printer/ink combination as separate item
 - Group items that share the same delivery info
 - Empty fields: "N/A"
 - Confidence: 0-1 per field
 - Bounding boxes: [x_min, y_min, x_max, y_max] normalized 0-1
-- Arabic: precise dots (ب ت ث ن ي)
+
+Character Recognition:
+- Arabic text: Extract precisely with correct dots and diacritics (ب ت ث ن ي)
+- English text: Extract all letters (A-Z, a-z) accurately
+- Numbers: Extract both Arabic numerals (٠١٢٣٤٥٦٧٨٩) and English numerals (0-9)
+- Mixed content: Preserve the original format (Arabic/English numbers as they appear)
+- Special characters: Preserve hyphens, slashes, and common punctuation
+
+Quality Requirements:
+- Read numbers carefully: distinguish 0/O, 1/I/l, 5/S, 8/B
+- Read Arabic carefully: distinguish similar letters (ب ت ث, ج ح خ, د ذ, ر ز, س ش, ص ض, ط ظ, ع غ, ف ق)
+- Maintain original text direction (RTL for Arabic, LTR for English)
 
 Output JSON only.`;
 
@@ -287,26 +299,51 @@ const responseSchema = {
 // --- Post-Processing & Error Correction ---
 const dateNormalizer = new DateNormalizer();
 const arabicCorrector = new ArabicCorrector();
+const numberNormalizer = new NumberNormalizer();
 
 const postProcessField = (field: FormField, value: string): { correctedValue: string, correctionDetails?: { original: string, reason: string } } => {
     let correctedValue = String(value ?? '').trim();
     const originalValue = correctedValue;
+    let correctionReason = "";
 
-    if (ARABIC_REGEX.test(originalValue)) {
-        return arabicCorrector.postProcess(field, originalValue);
-    }
-    
-    // Non-Arabic corrections
-    if (field === "Date") {
+    // معالجة الحقول الرقمية أولاً
+    if (field === "Ink Number" || field === "Employee ID") {
+        // تحويل الأرقام العربية إلى إنجليزية وإصلاح أخطاء OCR
+        correctedValue = numberNormalizer.normalize(correctedValue, false);
+        if (correctedValue !== originalValue) {
+            correctionReason = "Number normalization (Arabic to English + OCR fixes)";
+        }
+    } else if (field === "Date") {
+        // معالجة التاريخ (يتضمن تحويل الأرقام العربية)
         correctedValue = dateNormalizer.normalize(correctedValue);
-    } else if (field === "Ink Number" || field === "Employee ID") {
-        correctedValue = correctedValue.replace(/O/g, '0').replace(/I/g, '1').replace(/S/g, '5');
+        if (correctedValue !== originalValue) {
+            correctionReason = "Date normalization";
+        }
+    } else {
+        // معالجة الحقول النصية
+        if (ARABIC_REGEX.test(originalValue)) {
+            // نص عربي: استخدام المصحح العربي
+            const arabicResult = arabicCorrector.postProcess(field, originalValue);
+            correctedValue = arabicResult.correctedValue;
+            if (arabicResult.correctionDetails) {
+                correctionReason = arabicResult.correctionDetails.reason;
+            }
+        } else {
+            // نص إنجليزي: تحويل أي أرقام عربية مختلطة إلى إنجليزية
+            const hasArabicNumbers = /[٠-٩]/.test(originalValue);
+            if (hasArabicNumbers) {
+                correctedValue = numberNormalizer.convertMixedNumerals(originalValue);
+                if (correctedValue !== originalValue) {
+                    correctionReason = "Converted Arabic numerals to English";
+                }
+            }
+        }
     }
     
     const wasCorrected = originalValue !== correctedValue;
     return { 
       correctedValue, 
-      correctionDetails: wasCorrected ? { original: originalValue, reason: "Standard character replacement." } : undefined
+      correctionDetails: wasCorrected ? { original: originalValue, reason: correctionReason || "Standard character replacement." } : undefined
     };
 };
 
