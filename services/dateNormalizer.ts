@@ -4,7 +4,7 @@ export class DateNormalizer {
     private numberNormalizer = new NumberNormalizer();
 
     private convertNumerals(input: string): string {
-        return this.numberNormalizer.normalize(input, 'Date');
+        return this.numberNormalizer.normalize(input, false);
     }
 
     private isValidDate(year: number, month: number, day: number): boolean {
