@@ -32,21 +32,27 @@ const App: React.FC = () => {
     const [toasts, setToasts] = useState<ToastMessage[]>([]);
     const [focusedCell, setFocusedCell] = useState<{ formIndex: number; field: FormField } | null>(null);
     const [hoveredBox, setHoveredBox] = useState<BoundingBox | null>(null);
+    const [reviewMode, setReviewMode] = useState(false);
 
     // تخطيط ثلاثي الأعمدة: يسار (وثائق) / وسط (صورة) / يمين (نتائج)
     const [leftPct, setLeftPct] = useState<number>(() => {
         const saved = localStorage.getItem('layout:leftPct');
-        return saved ? Number(saved) : 22; // 22% افتراضي
+        return saved ? Number(saved) : 20; // 20% افتراضي
     });
     const [centerPct, setCenterPct] = useState<number>(() => {
         const saved = localStorage.getItem('layout:centerPct');
-        return saved ? Number(saved) : 48; // 48% افتراضي
+        return saved ? Number(saved) : 40; // 40% افتراضي
     });
     // حساب العمود الأيمن ديناميكياً
     const rightPct = useMemo(() => {
+        if (reviewMode) {
+            // في وضع المراجعة: العمود الأيمن = 100 - العمود الأوسط - هامش
+            const resizersWidth = 0.5;
+            return Math.max(20, 100 - centerPct - resizersWidth);
+        }
         const resizersWidth = 1; // هامش للـ resizers (0.5% لكل واحد)
         return Math.max(20, 100 - leftPct - centerPct - resizersWidth);
-    }, [leftPct, centerPct]);
+    }, [leftPct, centerPct, reviewMode]);
 
     const activeResizer = useRef<'left' | 'right' | null>(null);
     const isResizing = useRef(false);
@@ -112,24 +118,28 @@ const App: React.FC = () => {
         if (!isResizing.current) return;
         const pointerPct = (e.clientX / window.innerWidth) * 100;
         if (activeResizer.current === 'left') {
-            // يحرك الحد بين العمود الأيسر والوسط
-            const newLeft = Math.max(12, Math.min(pointerPct, 40)); // 12%-40%
-            // تأكد أن الوسط يبقى على الأقل 30%
-            const minCenter = 30;
-            const maxCenter = 80 - newLeft; // اترك 20% لليمين
-            const boundedCenter = Math.max(minCenter, Math.min(centerPct, maxCenter));
-            setLeftPct(newLeft);
-            setCenterPct(boundedCenter);
+            // يحرك الحد بين العمود الأيسر والوسط (فقط في الوضع العادي)
+            const newLeft = Math.max(15, Math.min(pointerPct, 35)); // 15%-35%
+            // تأكد أن المجموع لا يتجاوز 100% وأن كل عمود له حد أدنى
+            const maxLeft = 100 - 30 - 20 - 1; // اترك 30% للوسط و 20% لليمين و 1% للـ resizers
+            const boundedLeft = Math.min(newLeft, maxLeft);
+            setLeftPct(boundedLeft);
         } else if (activeResizer.current === 'right') {
             // يحرك الحد بين الوسط واليمين
-            // مركز = موضع المؤشر - يسار
-            let newCenter = pointerPct - leftPct;
-            newCenter = Math.max(30, Math.min(newCenter, 75)); // 30%-75%
-            // تأكد من وجود 10% على الأقل لليمين
-            if (leftPct + newCenter > 90) newCenter = 90 - leftPct;
-            setCenterPct(newCenter);
+            if (reviewMode) {
+                // في وضع المراجعة: نحرك العمود الأوسط فقط
+                const newCenter = Math.max(20, Math.min(pointerPct, 80)); // 20%-80%
+                setCenterPct(newCenter);
+            } else {
+                // في الوضع العادي: نحرك بناءً على موقع العمود الأيسر
+                const newCenter = pointerPct - leftPct;
+                const minCenter = 30;
+                const maxCenter = 100 - leftPct - 20 - 1; // اترك 20% لليمين و 1% للـ resizers
+                const boundedCenter = Math.max(minCenter, Math.min(newCenter, maxCenter));
+                setCenterPct(boundedCenter);
+            }
         }
-    }, []);
+    }, [leftPct, centerPct, reviewMode]);
     
     useEffect(() => {
         if (isDesktop) {
@@ -292,7 +302,6 @@ const App: React.FC = () => {
 
     const [autoSaveEnabled, setAutoSaveEnabled] = useState(true);
     const [lastSaved, setLastSaved] = useState<Date | null>(null);
-    const [reviewMode, setReviewMode] = useState(false);
 
     const handleSave = useCallback(() => {
         if (!selectedFile) return;
@@ -320,7 +329,7 @@ const App: React.FC = () => {
     // اختصار لوحة المفاتيح Ctrl+R لوضع المراجعة
     useEffect(() => {
         const handleKeyDown = (e: KeyboardEvent) => {
-            if ((e.ctrlKey || e.metaKey) && e.key === 'r') {
+            if ((e.ctrlKey || e.metaKey) && e.key === 'b') {
                 e.preventDefault();
                 setReviewMode(prev => !prev);
             }
@@ -389,11 +398,11 @@ const App: React.FC = () => {
             <main className={`flex-grow flex min-h-0 gap-0 ${isXL ? 'flex-row' : 'flex-col'}`}>
                 {/* العمود الأيسر: الوثائق - يطوى في وضع المراجعة */}
                 {isXL && (!reviewMode) && (
-                    <div 
+                    <div
                         className="flex flex-col p-4 glassmorphism rounded-xl min-h-0"
                         style={isDesktop ? { width: `${leftPct}%` } : { height: '33%' }}
                     >
-                        <ImageUploader 
+                        <ImageUploader
                             files={uploadedFiles}
                             selectedFileId={selectedFileId}
                             onAddFiles={handleAddFiles}
@@ -409,9 +418,9 @@ const App: React.FC = () => {
 
                 {/* العمود الأوسط: عارض المستند */}
                 {(isXL || mobilePane === 'image') && (
-                    <div 
+                    <div
                         className="flex flex-col p-4 glassmorphism rounded-xl min-h-0"
-                        style={isXL ? { width: `${centerPct}%` } : { height: '60%' }}
+                        style={isXL ? { width: `${centerPct}%` } : undefined}
                     >
                         <div className="flex-grow min-h-0">
                             {selectedFile ? (
@@ -434,12 +443,15 @@ const App: React.FC = () => {
                     </div>
                 )}
 
-                {/* مقبض وسط/يمين */}
+                {/* مقبض وسط/يمين - يظهر دائماً في XL */}
                 {isXL && <div className="resize-handle" data-side="right" onMouseDown={handleMouseDown} />}
 
                 {/* العمود الأيمن: النتائج */}
                 {(isXL || mobilePane === 'data') && (
-                    <div className="flex-grow min-h-0 p-0">
+                    <div
+                        className="flex flex-col min-h-0 p-0"
+                        style={isXL ? { width: `${rightPct}%` } : undefined}
+                    >
                         <ResultsPanel
                             selectedFile={selectedFile}
                             onDataUpdate={handleDataUpdate}

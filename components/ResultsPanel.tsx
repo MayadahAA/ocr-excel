@@ -77,7 +77,7 @@ export const ResultsPanel: React.FC<ResultsPanelProps> = React.memo(({
     const errorCount = selectedFile?.validationIssues?.length || 0;
     
     return (
-        <div className="w-full h-full flex flex-col space-y-4 glassmorphism rounded-xl p-4 min-h-0">
+        <div className="w-full h-full flex flex-col gap-3 sm:gap-4 glassmorphism rounded-xl p-3 sm:p-4 overflow-hidden">
             <header className="flex-shrink-0 flex flex-col gap-2 sm:gap-3">
                 <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 sm:gap-3">
                     <div className="min-w-0 flex-1">
@@ -157,7 +157,7 @@ export const ResultsPanel: React.FC<ResultsPanelProps> = React.memo(({
             
             {selectedFile && (
                 <>
-                    <div className="flex-grow min-h-0">
+                    <div className="flex-1 min-h-0 overflow-hidden flex flex-col">
                         {selectedFile.status === 'processing' && (
                             <div className="flex h-full flex-col items-center justify-center gap-4">
                                 <SpinnerIcon className="w-12 h-12 text-blue-500" />
@@ -191,15 +191,17 @@ export const ResultsPanel: React.FC<ResultsPanelProps> = React.memo(({
                         )}
                         
                         {selectedFile.extractedData && (
-                           <DataTable 
-                                data={selectedFile.extractedData} 
-                                issues={selectedFile.validationIssues || []}
-                                onDataUpdate={onDataUpdate}
-                                onCellHover={onCellHover}
-                                onCellFocus={onCellFocus}
-                                selectedIndices={selectedIndices}
-                                onSelectionChange={handleSelectionChange}
-                            />
+                           <div className="flex-1 min-h-0 overflow-hidden">
+                               <DataTable
+                                    data={selectedFile.extractedData}
+                                    issues={selectedFile.validationIssues || []}
+                                    onDataUpdate={onDataUpdate}
+                                    onCellHover={onCellHover}
+                                    onCellFocus={onCellFocus}
+                                    selectedIndices={selectedIndices}
+                                    onSelectionChange={handleSelectionChange}
+                                />
+                           </div>
                         )}
                     </div>
                     

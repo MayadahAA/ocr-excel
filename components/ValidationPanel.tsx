@@ -93,35 +93,35 @@ export const ValidationPanel: React.FC<ValidationPanelProps> = ({ issues, onIssu
   };
 
   return (
-    <div className="flex-shrink-0 flex flex-col space-y-2 pt-4 border-t border-slate-200 min-h-0">
-      <div className="flex items-center justify-between">
-        <h3 className="text-md font-semibold text-slate-700 flex items-center">
-          <span className="flex items-center justify-center h-7 w-7 mr-3 rounded-lg bg-gradient-to-br from-amber-500 to-orange-500">
-            <WarningIcon className="h-4 w-4 text-white" />
+    <div className="flex-shrink-0 flex flex-col space-y-2 pt-3 sm:pt-4 border-t border-slate-700/50 min-h-0 max-h-[30vh]">
+      <div className="flex items-center justify-between flex-shrink-0">
+        <h3 className="text-sm sm:text-md font-semibold text-slate-200 flex items-center">
+          <span className="flex items-center justify-center h-6 w-6 sm:h-7 sm:w-7 mr-2 sm:mr-3 rounded-lg bg-gradient-to-br from-amber-500 to-orange-500 flex-shrink-0">
+            <WarningIcon className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-white" />
           </span>
-          Validation Issues
-          <span className="ml-2 px-2 py-0.5 text-xs font-bold bg-red-100 text-red-600 rounded-full">
+          <span className="truncate">Validation Issues</span>
+          <span className="ml-2 px-2 py-0.5 text-xs font-bold bg-red-500/20 text-red-400 rounded-full flex-shrink-0">
             {currentIssueIndex + 1} / {issues.length}
           </span>
         </h3>
-        <div className="flex gap-1">
-          <button 
+        <div className="flex gap-1 flex-shrink-0">
+          <button
             onClick={handlePrev}
-            className="px-3 py-1 text-xs bg-slate-100 hover:bg-slate-200 rounded-md transition-colors"
+            className="px-2 sm:px-3 py-1 text-xs bg-slate-700 hover:bg-slate-600 rounded-md transition-colors text-slate-200"
             data-tooltip="Previous (Shift+Tab)"
           >
             ← السابق
           </button>
-          <button 
+          <button
             onClick={handleNext}
-            className="px-3 py-1 text-xs bg-slate-100 hover:bg-slate-200 rounded-md transition-colors"
+            className="px-2 sm:px-3 py-1 text-xs bg-slate-700 hover:bg-slate-600 rounded-md transition-colors text-slate-200"
             data-tooltip="Next (Tab)"
           >
             التالي →
           </button>
         </div>
       </div>
-      <div className="overflow-y-auto space-y-1 pr-2 -mr-2 max-h-48">
+      <div className="overflow-y-auto space-y-1 pr-2 -mr-2 flex-1 min-h-0">
         {categorizedIssues.missing && (
           <IssueCategory title="Missing Fields" issues={categorizedIssues.missing} iconColor="text-red-500" onIssueClick={onIssueClick} />
         )}

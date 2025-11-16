@@ -112,7 +112,7 @@ export const EditableCell: React.FC<EditableCellProps & { density?: Density }> =
       onMouseEnter={() => onHover(true)}
       onMouseLeave={() => onHover(false)}
       onClick={!isEditing ? handleClick : undefined}
-      className={`${densityClass} text-slate-900 relative transition-colors duration-200 cursor-pointer ${isArabic ? 'text-right' : 'text-left'} ${getBorderClass()}`}
+      className={`${densityClass} text-slate-200 relative transition-colors duration-200 cursor-pointer ${isArabic ? 'text-right' : 'text-left'} ${getBorderClass()}`}
       data-tooltip={getTooltip()}
     >
       {isEditing ? (
@@ -123,7 +123,7 @@ export const EditableCell: React.FC<EditableCellProps & { density?: Density }> =
           onChange={(e) => setCurrentValue(e.target.value)}
           onBlur={handleSave}
           onKeyDown={handleKeyDown}
-          className={`w-full bg-white border border-slate-300 text-slate-900 px-3 py-2 rounded-lg shadow-sm outline-none focus:ring-2 focus:ring-blue-400 ${isArabic ? 'text-right' : 'text-left'}`}
+          className={`w-full bg-slate-900 border border-slate-600 text-slate-200 px-3 py-2 rounded-lg shadow-sm outline-none focus:ring-2 focus:ring-blue-500 ${isArabic ? 'text-right' : 'text-left'}`}
           dir={isArabic ? 'rtl' : 'ltr'}
         />
       ) : (
@@ -135,7 +135,7 @@ export const EditableCell: React.FC<EditableCellProps & { density?: Density }> =
               />
             )}
             <span className={`block truncate leading-relaxed ${isArabic ? 'text-right flex-grow font-medium' : 'text-left flex-grow font-medium'}`}>
-              {value || <span className="text-slate-400 italic">empty</span>}
+              {value || <span className="text-slate-500 italic text-xs">empty</span>}
             </span>
             {correctionInfo && <SparkleIcon className="h-4 w-4 text-amber-500 flex-shrink-0" />}
         </div>
