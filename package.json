@@ -1,5 +1,5 @@
 {
-  "name": "ocr-to-excel-extractor",
+  "name": "ocr-excel",
   "private": true,
   "version": "0.0.0",
   "type": "module",
