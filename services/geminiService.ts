@@ -3,6 +3,8 @@ import { ExtractedForm, ApiResponse, FormField, QualityReport, ExtractedDelivery
 import { DateNormalizer } from './dateNormalizer';
 import { ArabicCorrector } from './arabicCorrector';
 import { NumberNormalizer } from './numberNormalizer';
+import { EmployeeIdNormalizer } from './employeeIdNormalizer';
+import { InkTypeNormalizer } from './inkTypeNormalizer';
 import { db } from './mockDatabase';
 
 const FORM_FIELDS: FormField[] = ["Printer Name", "Ink Type", "Ink Number", "Date", "Department", "Recipient Name", "Employee ID", "Deliverer Name"];
@@ -209,6 +211,12 @@ Extraction Rules:
 - Confidence: 0-1 per field
 - Bounding boxes: [x_min, y_min, x_max, y_max] normalized 0-1
 
+Field-Specific Rules:
+- Employee ID: Format is 1-3 LETTERS followed by NUMBERS (e.g., "AB12345", "KR147378"). Do NOT extract all-numeric values. If you see only numbers, check for letters nearby.
+- Ink Type: Common values include "Original", "Compatible", "Refilled" or similar variants
+- Ink Number: Alphanumeric identifier for the ink cartridge
+- Date: Extract in any format, will be normalized later
+
 Character Recognition:
 - Arabic text: Extract precisely with correct dots and diacritics (ب ت ث ن ي)
 - English text: Extract all letters (A-Z, a-z) accurately
@@ -219,6 +227,7 @@ Character Recognition:
 Quality Requirements:
 - Read numbers carefully: distinguish 0/O, 1/I/l, 5/S, 8/B
 - Read Arabic carefully: distinguish similar letters (ب ت ث, ج ح خ, د ذ, ر ز, س ش, ص ض, ط ظ, ع غ, ف ق)
+- For Employee ID: Look carefully for letter prefixes (commonly 2-3 letters)
 - Maintain original text direction (RTL for Arabic, LTR for English)
 
 Output JSON only.`;
@@ -300,18 +309,32 @@ const responseSchema = {
 const dateNormalizer = new DateNormalizer();
 const arabicCorrector = new ArabicCorrector();
 const numberNormalizer = new NumberNormalizer();
+const employeeIdNormalizer = new EmployeeIdNormalizer();
+const inkTypeNormalizer = new InkTypeNormalizer();
 
 const postProcessField = (field: FormField, value: string): { correctedValue: string, correctionDetails?: { original: string, reason: string } } => {
     let correctedValue = String(value ?? '').trim();
     const originalValue = correctedValue;
     let correctionReason = "";
 
-    // معالجة الحقول الرقمية أولاً
-    if (field === "Ink Number" || field === "Employee ID") {
+    // معالجة حقول محددة بمعالجات متخصصة
+    if (field === "Employee ID") {
+        // معالجة رقم الموظف بمعالج متخصص
+        correctedValue = employeeIdNormalizer.normalize(correctedValue);
+        if (correctedValue !== originalValue) {
+            correctionReason = "Employee ID format correction (OCR fixes)";
+        }
+    } else if (field === "Ink Number") {
         // تحويل الأرقام العربية إلى إنجليزية وإصلاح أخطاء OCR
         correctedValue = numberNormalizer.normalize(correctedValue, false);
         if (correctedValue !== originalValue) {
             correctionReason = "Number normalization (Arabic to English + OCR fixes)";
+        }
+    } else if (field === "Ink Type") {
+        // معالجة نوع الحبر بمعالج متخصص
+        correctedValue = inkTypeNormalizer.normalize(correctedValue);
+        if (correctedValue !== originalValue) {
+            correctionReason = "Ink type normalization (OCR fixes + standardization)";
         }
     } else if (field === "Date") {
         // معالجة التاريخ (يتضمن تحويل الأرقام العربية)
@@ -320,7 +343,7 @@ const postProcessField = (field: FormField, value: string): { correctedValue: st
             correctionReason = "Date normalization";
         }
     } else {
-        // معالجة الحقول النصية
+        // معالجة الحقول النصية الأخرى
         if (ARABIC_REGEX.test(originalValue)) {
             // نص عربي: استخدام المصحح العربي
             const arabicResult = arabicCorrector.postProcess(field, originalValue);
@@ -339,10 +362,10 @@ const postProcessField = (field: FormField, value: string): { correctedValue: st
             }
         }
     }
-    
+
     const wasCorrected = originalValue !== correctedValue;
-    return { 
-      correctedValue, 
+    return {
+      correctedValue,
       correctionDetails: wasCorrected ? { original: originalValue, reason: correctionReason || "Standard character replacement." } : undefined
     };
 };
